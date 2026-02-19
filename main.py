@@ -14,11 +14,9 @@ from huggingface_hub import hf_hub_download
 app = FastAPI(title="Begone Compute")
 
 API_KEY = os.getenv("API_KEY", "")
-DEFAULT_MODE = os.getenv("DEFAULT_MODE", "fast")  # "fast", "base", or "plus_ultra"
+DEFAULT_MODE = os.getenv("DEFAULT_MODE", "fast")  # Mode parameter (all modes use same ONNX model)
 
-# Lazy-loaded models
-_remover_fast = None
-_remover_base = None
+# Lazy-loaded model
 _remover_plus_ultra = None
 
 class ONNXRemover:
@@ -85,23 +83,12 @@ class ONNXRemover:
 
 def get_remover(mode: str):
     global _remover_fast, _remover_base, _remover_plus_ultra
-    
-    if mode == "plus_ultra":
-        if _remover_plus_ultra is None:
-            # Try CoreML if on Mac, else CPU
-            providers = ['CoreMLExecutionProvider', 'CPUExecutionProvider']
-            _remover_plus_ultra = ONNXRemover(provider=providers)
-        return _remover_plus_ultra
-        
-    from transparent_background import Remover
-    if mode == "fast":
-        if _remover_fast is None:
-            _remover_fast = Remover(mode="fast", device="cpu")
-        return _remover_fast
-    else: # base
-        if _remover_base is None:
-            _remover_base = Remover(mode="base", device="cpu")
-        return _remover_base
+
+    # All modes now use ONNX InSPyReNet model (no transparent_background dependency)
+    if _remover_plus_ultra is None:
+        providers = ['CPUExecutionProvider']
+        _remover_plus_ultra = ONNXRemover(provider=providers)
+    return _remover_plus_ultra
 
 
 @app.get("/health")
