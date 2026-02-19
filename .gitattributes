@@ -1,4 +1,11 @@
+models/inspyrenet_fast.onnx filter=lfs diff=lfs merge=lfs -text
+models/inspyrenet_fast.onnx.data filter=lfs diff=lfs merge=lfs -text
+models/inspyrenet_base_384.onnx filter=lfs diff=lfs merge=lfs -text
+models/inspyrenet_base_384.onnx.data filter=lfs diff=lfs merge=lfs -text
 models/inspyrenet_base_512.onnx filter=lfs diff=lfs merge=lfs -text
 models/inspyrenet_base_512.onnx.data filter=lfs diff=lfs merge=lfs -text
+models/inspyrenet_base_640.onnx filter=lfs diff=lfs merge=lfs -text
+models/inspyrenet_base_640.onnx.data filter=lfs diff=lfs merge=lfs -text
 models/inspyrenet_base_768.onnx filter=lfs diff=lfs merge=lfs -text
 models/inspyrenet_base_768.onnx.data filter=lfs diff=lfs merge=lfs -text
+models/inspyrenet_plus_ultra.onnx filter=lfs diff=lfs merge=lfs -text
