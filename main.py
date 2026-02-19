@@ -42,12 +42,9 @@ class ONNXRemover:
 
     def process(self, img, type="rgba"):
         # Preprocess
-        # Resize to 1024x1024 (native) or smaller if needed. 
-        # Using 1024x1024 as requested for "Plus Ultra" precision, 
-        # but locally we saw crashes. On server (this script), user might want control.
-        # For now, let's stick to 1024x1024 (native) but use 768 if OOM is a concern.
-        # Let's use 1024 for "Plus Ultra" fidelity as default.
-        input_size = (1024, 1024) 
+        # Using 768x768 to reduce memory usage and prevent OOM on servers with limited RAM
+        # This still provides high quality results while being more memory efficient
+        input_size = (768, 768) 
         
         img_pil = img.convert('RGB')
         original_size = img_pil.size
