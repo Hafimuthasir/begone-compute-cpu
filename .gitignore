@@ -161,3 +161,7 @@ Thumbs.db
 cred.md
 .env
 ansible/
+*.onnx
+*.onnx.data
+!models/inspyrenet_base_768.onnx
+!models/inspyrenet_base_768.onnx.data
