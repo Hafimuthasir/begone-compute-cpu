@@ -4,28 +4,101 @@ Runs InSPyReNet via transparent-background to remove image backgrounds.
 """
 import os
 import io
+import numpy as np
+import onnxruntime as ort
 from fastapi import FastAPI, File, UploadFile, Query, HTTPException, Header
 from fastapi.responses import Response
 from PIL import Image
+from huggingface_hub import hf_hub_download
 
 app = FastAPI(title="Begone Compute")
 
 API_KEY = os.getenv("API_KEY", "")
-DEFAULT_MODE = os.getenv("DEFAULT_MODE", "fast")  # "fast" or "base"
+DEFAULT_MODE = os.getenv("DEFAULT_MODE", "fast")  # "fast", "base", or "plus_ultra"
 
 # Lazy-loaded models
 _remover_fast = None
 _remover_base = None
+_remover_plus_ultra = None
+
+class ONNXRemover:
+    def __init__(self, provider=['CPUExecutionProvider']):
+        self.session = None
+        self.provider = provider
+        self.load_model()
+
+    def load_model(self):
+        repo_id = "OS-Software/InSPyReNet-SwinB-Plus-Ultra-ONNX"
+        filename = "onnx/model.onnx"
+        model_path = hf_hub_download(repo_id=repo_id, filename=filename)
+        
+        try:
+            # Try specified providers (e.g., CoreML)
+            self.session = ort.InferenceSession(model_path, providers=self.provider)
+        except Exception as e:
+            print(f"Warning: Could not load with {self.provider}. Fallback to CPU. Error: {e}")
+            self.session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+
+        self.input_name = self.session.get_inputs()[0].name
+        self.output_name = self.session.get_outputs()[0].name
+
+    def process(self, img, type="rgba"):
+        # Preprocess
+        # Resize to 1024x1024 (native) or smaller if needed. 
+        # Using 1024x1024 as requested for "Plus Ultra" precision, 
+        # but locally we saw crashes. On server (this script), user might want control.
+        # For now, let's stick to 1024x1024 (native) but use 768 if OOM is a concern.
+        # Let's use 1024 for "Plus Ultra" fidelity as default.
+        input_size = (1024, 1024) 
+        
+        img_pil = img.convert('RGB')
+        original_size = img_pil.size
+        
+        img_input = img_pil.resize(input_size, Image.BILINEAR)
+        img_input = np.array(img_input).astype(np.float32) / 255.0
+        
+        # Normalize
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        img_input = (img_input - mean) / std
+        
+        img_input = img_input.transpose(2, 0, 1)
+        img_input = np.expand_dims(img_input, axis=0)
+        
+        # Inference
+        pred = self.session.run([self.output_name], {self.input_name: img_input})[0]
+        pred = pred.squeeze()
+        
+        # Post-process
+        # Resize back to original
+        # We need cv2 for resize, or use PIL
+        pred_img = Image.fromarray((pred * 255).astype(np.uint8), mode='L')
+        pred_img = pred_img.resize(original_size, Image.BILINEAR)
+        
+        if type == "map":
+             return pred_img
+        
+        # RGBA
+        img_pil.putalpha(pred_img)
+        return img_pil
 
 
-def get_remover(fast: bool):
-    global _remover_fast, _remover_base
+def get_remover(mode: str):
+    global _remover_fast, _remover_base, _remover_plus_ultra
+    
+    if mode == "plus_ultra":
+        if _remover_plus_ultra is None:
+            # Try CoreML if on Mac, else CPU
+            providers = ['CoreMLExecutionProvider', 'CPUExecutionProvider']
+            _remover_plus_ultra = ONNXRemover(provider=providers)
+        return _remover_plus_ultra
+        
     from transparent_background import Remover
-    if fast:
+    if mode == "fast":
         if _remover_fast is None:
             _remover_fast = Remover(mode="fast", device="cpu")
         return _remover_fast
-    else:
+    else: # base
         if _remover_base is None:
             _remover_base = Remover(mode="base", device="cpu")
         return _remover_base
@@ -45,18 +118,19 @@ async def remove_background(
     if API_KEY and x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    # Determine mode from model name or default
+    # Determine mode
+    mode = DEFAULT_MODE
     if "fast" in model.lower():
-        fast_mode = True
+        mode = "fast"
     elif "base" in model.lower():
-        fast_mode = False
-    else:
-        fast_mode = (DEFAULT_MODE == "fast")
+        mode = "base"
+    elif "plus_ultra" in model.lower() or "plus" in model.lower():
+        mode = "plus_ultra"
 
     image_bytes = await file.read()
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-    remover = get_remover(fast_mode)
+    remover = get_remover(mode)
     result = remover.process(img, type="rgba")  # PIL RGBA image
 
     output = io.BytesIO()
