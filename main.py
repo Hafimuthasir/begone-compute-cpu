@@ -18,8 +18,8 @@ MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "20"))
 MAX_IMAGE_PIXELS = int(os.getenv("MAX_IMAGE_PIXELS", "25000000"))
 
 MODELS_DIR = Path(__file__).parent / "models"
-MODEL_PATH = MODELS_DIR / "inspyrenet_base_768.onnx"
-INPUT_SIZE = (768, 768)
+MODEL_PATH = MODELS_DIR / "inspyrenet_fast.onnx"
+INPUT_SIZE = (384, 384)
 
 _remover = None
 
@@ -89,7 +89,7 @@ def get_remover() -> ONNXRemover:
 def health():
     return {
         "status": "ok",
-        "model": "inspyrenet_base_768",
+        "model": "inspyrenet_fast",
         "model_loaded": _remover is not None,
     }
 

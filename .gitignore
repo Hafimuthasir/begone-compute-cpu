@@ -165,3 +165,5 @@ ansible/
 *.onnx.data
 !models/inspyrenet_base_768.onnx
 !models/inspyrenet_base_768.onnx.data
+!models/inspyrenet_fast.onnx
+!models/inspyrenet_fast.onnx.data
