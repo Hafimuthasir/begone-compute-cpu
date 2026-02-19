@@ -163,5 +163,7 @@ cred.md
 ansible/
 *.onnx
 *.onnx.data
+!models/inspyrenet_base_512.onnx
+!models/inspyrenet_base_512.onnx.data
 !models/inspyrenet_base_768.onnx
 !models/inspyrenet_base_768.onnx.data

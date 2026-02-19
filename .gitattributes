@@ -1,2 +1,4 @@
+models/inspyrenet_base_512.onnx filter=lfs diff=lfs merge=lfs -text
+models/inspyrenet_base_512.onnx.data filter=lfs diff=lfs merge=lfs -text
 models/inspyrenet_base_768.onnx filter=lfs diff=lfs merge=lfs -text
 models/inspyrenet_base_768.onnx.data filter=lfs diff=lfs merge=lfs -text
