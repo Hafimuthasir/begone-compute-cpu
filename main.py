@@ -4,6 +4,7 @@ Runs InSPyReNet via transparent-background to remove image backgrounds.
 """
 import os
 import io
+import gc
 import numpy as np
 import onnxruntime as ort
 from fastapi import FastAPI, File, UploadFile, Query, HTTPException, Header
@@ -26,7 +27,8 @@ class ONNXRemover:
         self.load_model()
 
     def load_model(self):
-        repo_id = "OS-Software/InSPyReNet-SwinB-Plus-Ultra-ONNX"
+        # Using base model instead of Plus-Ultra for better memory efficiency
+        repo_id = "OS-Software/InSPyReNet-SwinB-Base-ONNX"
         filename = "onnx/model.onnx"
         model_path = hf_hub_download(repo_id=repo_id, filename=filename)
         
@@ -119,4 +121,9 @@ async def remove_background(
 
     output = io.BytesIO()
     result.save(output, format="PNG")
+
+    # Force garbage collection to free memory immediately
+    del img, result
+    gc.collect()
+
     return Response(content=output.getvalue(), media_type="image/png")
