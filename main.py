@@ -14,7 +14,7 @@ from huggingface_hub import hf_hub_download
 app = FastAPI(title="Begone Compute")
 
 API_KEY = os.getenv("API_KEY", "")
-DEFAULT_MODE = os.getenv("DEFAULT_MODE", "fast")  # "fast", "base", or "plus_ultra"
+DEFAULT_MODE = os.getenv("DEFAULT_MODE", "base")  # "fast", "base", or "plus_ultra"
 
 # Lazy-loaded models
 _remover_fast = None
