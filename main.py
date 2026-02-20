@@ -28,31 +28,49 @@ MODEL_CONFIGS = {
         "file": "inspyrenet_fast.onnx",
         "input_size": (384, 384),
         "memory_mb": 355,
+        "input_filter": Image.BILINEAR,  # Fast resampling for speed
+        "output_filter": Image.BILINEAR,  # Fast resampling for speed
+        "enhance_contrast": False,  # Skip enhancement for speed
     },
     "base_384": {
         "file": "inspyrenet_base_384.onnx",
         "input_size": (384, 384),
         "memory_mb": 355,
+        "input_filter": Image.BILINEAR,
+        "output_filter": Image.BILINEAR,
+        "enhance_contrast": False,
     },
     "base_512": {
         "file": "inspyrenet_base_512.onnx",
         "input_size": (512, 512),
         "memory_mb": 355,
+        "input_filter": Image.BILINEAR,
+        "output_filter": Image.BILINEAR,
+        "enhance_contrast": False,
     },
     "base_640": {
         "file": "inspyrenet_base_640.onnx",
         "input_size": (640, 640),
         "memory_mb": 355,
+        "input_filter": Image.BILINEAR,
+        "output_filter": Image.BILINEAR,
+        "enhance_contrast": False,
     },
     "base_768": {
         "file": "inspyrenet_base_768.onnx",
         "input_size": (768, 768),
         "memory_mb": 355,
+        "input_filter": Image.BILINEAR,
+        "output_filter": Image.BILINEAR,
+        "enhance_contrast": False,
     },
     "plus_ultra": {
         "file": "inspyrenet_plus_ultra.onnx",
         "input_size": (1024, 1024),
         "memory_mb": 377,
+        "input_filter": Image.BICUBIC,  # High quality for premium model
+        "output_filter": Image.LANCZOS,  # High quality for premium model
+        "enhance_contrast": True,  # Premium model gets contrast enhancement
     },
 }
 
@@ -76,8 +94,18 @@ def _current_memory_mb() -> int:
 
 
 class ONNXRemover:
-    def __init__(self, model_path, input_size=(768, 768)):
+    def __init__(
+        self,
+        model_path,
+        input_size=(768, 768),
+        input_filter=Image.BICUBIC,
+        output_filter=Image.LANCZOS,
+        enhance_contrast=True,
+    ):
         self.input_size = input_size
+        self.input_filter = input_filter
+        self.output_filter = output_filter
+        self.enhance_contrast = enhance_contrast
         opts = _build_session_options()
         try:
             self.session = ort.InferenceSession(
@@ -95,8 +123,8 @@ class ONNXRemover:
         img_pil = img.convert("RGB")
         original_size = img_pil.size
 
-        # High-quality downsampling for input (BICUBIC)
-        img_input = img_pil.resize(self.input_size, Image.BICUBIC)
+        # Downsample to model input size using configured filter
+        img_input = img_pil.resize(self.input_size, self.input_filter)
         img_input = np.array(img_input).astype(np.float32) / 255.0
 
         mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -119,20 +147,16 @@ class ONNXRemover:
         pred_uint8 = (pred * 255).astype(np.uint8)
         del pred
 
-        # Optional: Enhance mask contrast for crisper edges (can be disabled via env var)
-        # This amplifies the model's confidence in edge regions without adding artifacts
-        if os.getenv("MASK_CONTRAST_ENHANCE", "1") == "1":
-            # Slight S-curve contrast enhancement: darker stays dark, lighter stays light
-            # but the middle tones (ambiguous areas) get pushed toward clarity
+        # Optional contrast enhancement (per-model setting)
+        if self.enhance_contrast:
             pred_uint8 = np.clip(
                 (pred_uint8.astype(np.float32) - 128) * 1.1 + 128, 0, 255
             ).astype(np.uint8)
 
         pred_img = Image.fromarray(pred_uint8, mode="L")
 
-        # High-quality upsampling back to original size (LANCZOS)
-        # LANCZOS provides superior quality compared to BILINEAR, especially for edges
-        pred_img = pred_img.resize(original_size, Image.LANCZOS)
+        # Upsample back to original size using configured filter
+        pred_img = pred_img.resize(original_size, self.output_filter)
 
         if output_type == "map":
             return pred_img
@@ -174,7 +198,14 @@ def get_model(name: str) -> ONNXRemover:
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found: {model_path}")
 
-        remover = ONNXRemover(model_path, input_size=MODEL_CONFIGS[name]["input_size"])
+        config = MODEL_CONFIGS[name]
+        remover = ONNXRemover(
+            model_path,
+            input_size=config["input_size"],
+            input_filter=config["input_filter"],
+            output_filter=config["output_filter"],
+            enhance_contrast=config["enhance_contrast"],
+        )
         _loaded_models[name] = remover
         return remover
 
