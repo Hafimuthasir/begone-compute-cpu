@@ -95,7 +95,8 @@ class ONNXRemover:
         img_pil = img.convert("RGB")
         original_size = img_pil.size
 
-        img_input = img_pil.resize(self.input_size, Image.BILINEAR)
+        # High-quality downsampling for input (BICUBIC)
+        img_input = img_pil.resize(self.input_size, Image.BICUBIC)
         img_input = np.array(img_input).astype(np.float32) / 255.0
 
         mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -114,9 +115,13 @@ class ONNXRemover:
         if len(pred.shape) == 3:
             pred = pred[0]
 
+        # Convert mask to PIL Image
         pred_img = Image.fromarray((pred * 255).astype(np.uint8), mode="L")
         del pred
-        pred_img = pred_img.resize(original_size, Image.BILINEAR)
+
+        # High-quality upsampling back to original size (LANCZOS)
+        # LANCZOS provides superior quality compared to BILINEAR, especially for edges
+        pred_img = pred_img.resize(original_size, Image.LANCZOS)
 
         if output_type == "map":
             return pred_img
