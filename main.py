@@ -116,8 +116,19 @@ class ONNXRemover:
             pred = pred[0]
 
         # Convert mask to PIL Image
-        pred_img = Image.fromarray((pred * 255).astype(np.uint8), mode="L")
+        pred_uint8 = (pred * 255).astype(np.uint8)
         del pred
+
+        # Optional: Enhance mask contrast for crisper edges (can be disabled via env var)
+        # This amplifies the model's confidence in edge regions without adding artifacts
+        if os.getenv("MASK_CONTRAST_ENHANCE", "1") == "1":
+            # Slight S-curve contrast enhancement: darker stays dark, lighter stays light
+            # but the middle tones (ambiguous areas) get pushed toward clarity
+            pred_uint8 = np.clip(
+                (pred_uint8.astype(np.float32) - 128) * 1.1 + 128, 0, 255
+            ).astype(np.uint8)
+
+        pred_img = Image.fromarray(pred_uint8, mode="L")
 
         # High-quality upsampling back to original size (LANCZOS)
         # LANCZOS provides superior quality compared to BILINEAR, especially for edges
