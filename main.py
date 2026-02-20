@@ -119,9 +119,19 @@ class ONNXRemover:
         self.output_name = self.session.get_outputs()[0].name
         print(f"[load] loaded model from {model_path}")
 
-    def process(self, img, output_type="rgba"):
+    def process(self, img, output_type="rgba", quality=100):
         img_pil = img.convert("RGB")
         original_size = img_pil.size
+
+        # Calculate output size based on quality percentage
+        # quality=100 → output at original size
+        # quality=50 → output at 50% of original size
+        # quality=25 → output at 25% of original size
+        quality_factor = quality / 100.0
+        output_size = (
+            max(1, int(original_size[0] * quality_factor)),
+            max(1, int(original_size[1] * quality_factor)),
+        )
 
         # Downsample to model input size using configured filter
         img_input = img_pil.resize(self.input_size, self.input_filter)
@@ -155,8 +165,8 @@ class ONNXRemover:
 
         pred_img = Image.fromarray(pred_uint8, mode="L")
 
-        # Upsample back to original size using configured filter
-        pred_img = pred_img.resize(original_size, self.output_filter)
+        # Upsample to quality-adjusted output size using configured filter
+        pred_img = pred_img.resize(output_size, self.output_filter)
 
         if output_type == "map":
             return pred_img
@@ -239,11 +249,26 @@ def health():
 async def remove_background(
     file: UploadFile = File(...),
     model: str = Query(DEFAULT_MODEL),
+    quality: int = Query(100),
     x_api_key: str = Header(default=""),
 ):
-    """Remove background from image using specified model."""
+    """Remove background from image using specified model.
+
+    Args:
+        file: Image file to process
+        model: Model name (fast, base_384, base_512, base_640, base_768, plus_ultra)
+        quality: Output quality 1-100 (100=full resolution, 50=half size, etc)
+        x_api_key: API key header
+    """
     if API_KEY and x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
+
+    # Validate quality parameter
+    if not (1 <= quality <= 100):
+        raise HTTPException(
+            status_code=400,
+            detail="quality must be between 1 and 100",
+        )
 
     # Validate model name early
     if model not in MODEL_CONFIGS:
@@ -271,7 +296,7 @@ async def remove_background(
 
     try:
         remover = get_model(model)
-        result = remover.process(img, output_type="rgba")
+        result = remover.process(img, output_type="rgba", quality=quality)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
