@@ -171,6 +171,8 @@ class ONNXRemover:
         if output_type == "map":
             return pred_img
 
+        # Resize original image to match output size (for quality control)
+        img_pil = img_pil.resize(output_size, self.input_filter)
         img_pil.putalpha(pred_img)
         return img_pil
 
