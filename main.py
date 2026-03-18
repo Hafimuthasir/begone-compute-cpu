@@ -291,7 +291,12 @@ async def remove_background(
         )
 
     try:
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img = Image.open(io.BytesIO(image_bytes))
+        if img.format and img.format.upper() in ("HEIF", "HEIC"):
+            raise HTTPException(status_code=400, detail="HEIC/HEIF format not supported. Please convert to JPEG or PNG before uploading.")
+        img = img.convert("RGB")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {str(e)}")
 
