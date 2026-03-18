@@ -280,6 +280,11 @@ async def remove_background(
         )
 
     image_bytes = await file.read()
+
+    # Enforce minimum quality of 85 for images under 1 MB
+    if len(image_bytes) < 1 * 1024 * 1024:
+        quality = max(quality, 85)
+
     if len(image_bytes) > MAX_FILE_SIZE_MB * 1024 * 1024:
         raise HTTPException(
             status_code=413, detail=f"File too large (max {MAX_FILE_SIZE_MB} MB)"
@@ -289,6 +294,13 @@ async def remove_background(
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {str(e)}")
+
+    # Cap input resolution to 2x model input size — extra pixels are discarded
+    # by the model anyway, so this reduces memory/time with no quality loss.
+    model_input_size = MODEL_CONFIGS[model]["input_size"][0]
+    max_side = model_input_size * 2
+    if img.width > max_side or img.height > max_side:
+        img.thumbnail((max_side, max_side), Image.LANCZOS)
 
     if img.width * img.height > MAX_IMAGE_PIXELS:
         raise HTTPException(
